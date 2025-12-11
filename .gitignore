@@ -1,0 +1,14 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Temporary files
+*.tmp
+*.temp
+*~
+
+# IDML and PDF files (optional - uncomment if you don't want to track these)
+# *.idml
+# *.pdf
+
