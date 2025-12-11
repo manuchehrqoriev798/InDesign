@@ -1,0 +1,133 @@
+#!/bin/bash
+# Convert IDML to PDF using InDesign
+# Usage: ./convert file.idml [output.pdf]
+
+echo "========================================="
+echo "IDML to PDF Converter - Starting..."
+echo "========================================="
+echo ""
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+APPLESCRIPT="$SCRIPT_DIR/convert_idml_to_pdf.applescript"
+
+echo "[LOG] Script directory: $SCRIPT_DIR"
+echo "[LOG] Looking for AppleScript: $APPLESCRIPT"
+echo ""
+
+# Validate arguments
+if [ -z "$1" ]; then
+    echo "ERROR: No input file provided"
+    echo ""
+    echo "Usage: $0 <input.idml> [output.pdf]"
+    echo ""
+    echo "Examples:"
+    echo "  $0 document.idml"
+    echo "  $0 document.idml output.pdf"
+    exit 1
+fi
+
+INPUT_FILE="$1"
+OUTPUT_FILE="$2"
+
+echo "[LOG] Input file (original): $INPUT_FILE"
+if [ -n "$OUTPUT_FILE" ]; then
+    echo "[LOG] Output file (original): $OUTPUT_FILE"
+fi
+echo ""
+
+# Convert to absolute paths
+echo "[LOG] Converting to absolute paths..."
+if [[ "$INPUT_FILE" != /* ]]; then
+    INPUT_FILE="$(cd "$(dirname "$INPUT_FILE")" && pwd)/$(basename "$INPUT_FILE")"
+fi
+
+if [ -n "$OUTPUT_FILE" ] && [[ "$OUTPUT_FILE" != /* ]]; then
+    OUTPUT_FILE="$(cd "$(dirname "$OUTPUT_FILE")" && pwd)/$(basename "$OUTPUT_FILE")"
+fi
+
+echo "[LOG] Input file (absolute): $INPUT_FILE"
+if [ -n "$OUTPUT_FILE" ]; then
+    echo "[LOG] Output file (absolute): $OUTPUT_FILE"
+fi
+echo ""
+
+# Validate files
+echo "[LOG] Validating files..."
+if [ ! -f "$INPUT_FILE" ]; then
+    echo "ERROR: Input file not found: $INPUT_FILE"
+    echo "[LOG] Current directory: $(pwd)"
+    echo "[LOG] Files in current directory:"
+    ls -la 2>/dev/null | head -10
+    exit 1
+fi
+
+if [ ! -f "$APPLESCRIPT" ]; then
+    echo "ERROR: AppleScript not found: $APPLESCRIPT"
+    echo "[LOG] Files in script directory:"
+    ls -la "$SCRIPT_DIR" 2>/dev/null
+    exit 1
+fi
+
+echo "[LOG] ✓ Input file exists: $INPUT_FILE"
+echo "[LOG] ✓ AppleScript exists: $APPLESCRIPT"
+echo ""
+
+# Check if JSX script exists
+JSX_SCRIPT="$SCRIPT_DIR/idml_to_pdf.jsx"
+if [ ! -f "$JSX_SCRIPT" ]; then
+    echo "ERROR: JSX script not found: $JSX_SCRIPT"
+    echo "[LOG] Files in script directory:"
+    ls -la "$SCRIPT_DIR" 2>/dev/null
+    exit 1
+fi
+echo "[LOG] ✓ JSX script exists: $JSX_SCRIPT"
+echo ""
+
+# Run conversion
+echo "[LOG] Starting conversion process..."
+echo "[LOG] Calling AppleScript..."
+echo ""
+
+if [ -n "$OUTPUT_FILE" ]; then
+    osascript "$APPLESCRIPT" "$INPUT_FILE" "$OUTPUT_FILE" 2>&1
+else
+    osascript "$APPLESCRIPT" "$INPUT_FILE" 2>&1
+fi
+
+EXIT_CODE=$?
+echo ""
+
+if [ $EXIT_CODE -eq 0 ]; then
+    echo "========================================="
+    echo "✓ SUCCESS: Conversion completed!"
+    echo "========================================="
+    if [ -n "$OUTPUT_FILE" ]; then
+        if [ -f "$OUTPUT_FILE" ]; then
+            echo "[LOG] PDF file created: $OUTPUT_FILE"
+            echo "[LOG] File size: $(ls -lh "$OUTPUT_FILE" | awk '{print $5}')"
+        else
+            echo "[WARNING] Expected PDF file not found: $OUTPUT_FILE"
+        fi
+    else
+        EXPECTED_PDF="${INPUT_FILE%.idml}.pdf"
+        if [ -f "$EXPECTED_PDF" ]; then
+            echo "[LOG] PDF file created: $EXPECTED_PDF"
+            echo "[LOG] File size: $(ls -lh "$EXPECTED_PDF" | awk '{print $5}')"
+        else
+            echo "[WARNING] Expected PDF file not found: $EXPECTED_PDF"
+        fi
+    fi
+else
+    echo "========================================="
+    echo "✗ FAILED: Conversion did not complete"
+    echo "========================================="
+    echo ""
+    echo "Please check the error messages above."
+    echo "Common issues:"
+    echo "  1. InDesign not installed or not found"
+    echo "  2. Terminal permission not granted (System Preferences > Security & Privacy > Accessibility)"
+    echo "  3. IDML file is corrupted or invalid"
+    echo "  4. Output directory is not writable"
+    exit $EXIT_CODE
+fi
+

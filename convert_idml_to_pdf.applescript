@@ -3,9 +3,14 @@
 -- Usage: osascript convert_idml_to_pdf.applescript input.idml [output.pdf]
 
 on run argv
+    log "[AppleScript] Starting..."
+    log "[AppleScript] Received " & (count of argv) & " argument(s)"
+    
     -- Validate arguments
     if (count of argv) < 1 then
-        return "ERROR: Usage: osascript convert_idml_to_pdf.applescript <input.idml> [output.pdf]"
+        set errorMsg to "ERROR: No input file provided. Usage: osascript convert_idml_to_pdf.applescript <input.idml> [output.pdf]"
+        log errorMsg
+        return errorMsg
     end if
     
     set inputFile to item 1 of argv
@@ -14,80 +19,133 @@ on run argv
         set outputFile to item 2 of argv
     end if
     
+    log "[AppleScript] Input file: " & inputFile
+    if outputFile is not "" then
+        log "[AppleScript] Output file: " & outputFile
+    end if
+    log ""
+    
     -- Validate input file
+    log "[AppleScript] Validating input file..."
     set inputFilePOSIX to POSIX file inputFile
     try
         set inputFileAlias to inputFilePOSIX as alias
-    on error
-        return "ERROR: Input file not found: " & inputFile
+        log "[AppleScript] ✓ Input file exists"
+    on error errMsg
+        set errorMsg to "ERROR: Input file not found: " & inputFile & " (" & errMsg & ")"
+        log errorMsg
+        return errorMsg
     end try
     
     -- Get JSX script path
+    log "[AppleScript] Locating JSX script..."
     set scriptPath to POSIX path of (path to me)
     set scriptDir to do shell script "dirname " & quoted form of scriptPath
     set jsxScript to scriptDir & "/idml_to_pdf.jsx"
     set jsxScriptPOSIX to POSIX file jsxScript
     
+    log "[AppleScript] JSX script path: " & jsxScript
+    
     try
         set jsxScriptAlias to jsxScriptPOSIX as alias
-    on error
-        return "ERROR: JSX script not found: " & jsxScript
+        log "[AppleScript] ✓ JSX script found"
+    on error errMsg
+        set errorMsg to "ERROR: JSX script not found: " & jsxScript & " (" & errMsg & ")"
+        log errorMsg
+        return errorMsg
     end try
-    
-    log "IDML to PDF Converter"
-    log "Input:  " & inputFile
-    if outputFile is not "" then
-        log "Output: " & outputFile
-    end if
     log ""
     
     try
         -- Find InDesign
+        log "[AppleScript] Looking for Adobe InDesign..."
         try
             set indesignApp to path to application "Adobe InDesign"
-        on error
-            return "ERROR: Adobe InDesign not found. Please install InDesign."
+            log "[AppleScript] ✓ InDesign found"
+        on error errMsg
+            set errorMsg to "ERROR: Adobe InDesign not found. Please install InDesign. (" & errMsg & ")"
+            log errorMsg
+            return errorMsg
         end try
         
         -- Check if InDesign is running
+        log "[AppleScript] Checking if InDesign is running..."
         tell application "System Events"
             set isRunning to (name of processes) contains "Adobe InDesign"
         end tell
         
-        -- Open InDesign if needed
-        if not isRunning then
-            log "Opening InDesign..."
-            tell application "Adobe InDesign"
-                activate
-                -- Wait for InDesign to be ready
-                delay 3
-                -- Verify it's ready by checking version
-                set indesignVersion to version as string
-                log "InDesign " & indesignVersion & " is ready"
-            end tell
+        if isRunning then
+            log "[AppleScript] ✓ InDesign is already running"
+        else
+            log "[AppleScript] InDesign is not running"
         end if
         
+        -- Open InDesign if needed
+        if not isRunning then
+            log "[AppleScript] Opening InDesign..."
+            tell application "Adobe InDesign"
+                activate
+                log "[AppleScript] Waiting for InDesign to be ready..."
+                delay 3
+                try
+                    set indesignVersion to version as string
+                    log "[AppleScript] ✓ InDesign " & indesignVersion & " is ready"
+                on error errMsg
+                    log "[AppleScript] WARNING: Could not get InDesign version: " & errMsg
+                end try
+            end tell
+        end if
+        log ""
+        
         -- Execute conversion
+        log "[AppleScript] Preparing to execute JSX script..."
         tell application "Adobe InDesign"
-            log "Converting..."
             -- Convert POSIX paths to strings for ExtendScript
             set inputFilePath to POSIX path of inputFilePOSIX
+            log "[AppleScript] Input file path (for JSX): " & inputFilePath
+            
+            -- Use file reference (alias) for the JSX script
+            set jsxScriptFile to jsxScriptPOSIX as alias
+            
             if outputFile is "" then
-                do script jsxScriptPOSIX with arguments {inputFilePath}
+                log "[AppleScript] Executing JSX script with 1 argument..."
+                try
+                    do script jsxScriptFile language javascript with arguments {inputFilePath}
+                    log "[AppleScript] ✓ JSX script execution completed"
+                on error errMsg number errNum
+                    log "[AppleScript] ERROR executing script: " & errMsg & " (Error: " & errNum & ")"
+                    error errMsg number errNum
+                end try
             else
                 set outputFilePOSIX to POSIX file outputFile
                 set outputFilePath to POSIX path of outputFilePOSIX
-                do script jsxScriptPOSIX with arguments {inputFilePath, outputFilePath}
+                log "[AppleScript] Output file path (for JSX): " & outputFilePath
+                log "[AppleScript] Executing JSX script with 2 arguments..."
+                try
+                    do script jsxScriptFile language javascript with arguments {inputFilePath, outputFilePath}
+                    log "[AppleScript] ✓ JSX script execution completed"
+                on error errMsg number errNum
+                    log "[AppleScript] ERROR executing script: " & errMsg & " (Error: " & errNum & ")"
+                    error errMsg number errNum
+                end try
             end if
-            log "SUCCESS: PDF created!"
+            log ""
+            log "[AppleScript] SUCCESS: PDF conversion completed!"
             return "SUCCESS"
         end tell
         
-    on error errorMessage
+    on error errorMessage number errorNumber
         set errorMsg to "ERROR: " & errorMessage
+        if errorNumber is not 0 then
+            set errorMsg to errorMsg & " (Error number: " & errorNumber & ")"
+        end if
         log errorMsg
         log ""
-        log "Tip: Grant Terminal permission in System Preferences > Security & Privacy > Accessibility"
+        log "[AppleScript] Troubleshooting tips:"
+        log "  1. Make sure Adobe InDesign is installed"
+        log "  2. Grant Terminal permission in System Preferences > Security & Privacy > Accessibility"
+        log "  3. Try opening InDesign manually first, then run this script again"
+        log "  4. Check that the IDML file is not corrupted"
         return errorMsg
     end try
 end run

@@ -1,0 +1,24 @@
+QUICK SETUP (One Time):
+
+1. Make script executable:
+   chmod +x convert
+
+2. Use it:
+   ./convert "Page 1.idml"
+
+OPTIONAL - Run from anywhere:
+
+If you want to run it from any folder without typing the full path:
+
+1. Add to PATH (add this line to ~/.zshrc or ~/.bash_profile):
+   export PATH="$PATH:$HOME/Desktop/indesign"
+
+2. Then you can run from anywhere:
+   convert "Page 1.idml"
+
+Or create an alias (add to ~/.zshrc or ~/.bash_profile):
+   alias convert-idml="$HOME/Desktop/indesign/convert"
+
+Then use:
+   convert-idml "Page 1.idml"
+
